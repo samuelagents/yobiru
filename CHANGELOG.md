@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Claude bridge model pin.** An optional `model` in the bridge configuration (`install_claude_bridge.py --model ID`, kept on upgrade) adds `--model ID` to each launch, so bridge sessions no longer follow whatever default the CLI resolves.
+- **Claude bridge reconciliation.** When the Claude CLI ignores `--session-id` for a `--bg` session, a run is reconciled by its unique launch name instead of staying `uncertain` and blocking later dispatch.
+- **Outgoing request lifecycle.** The sender's ledger now records the peer's receipt, first and latest `running`, and final result times (`received_at`, `started_at`, `progress_at`, `final_at`, `final_response_id`), whatever order the responses arrive in. Previously these stayed empty on outgoing requests, so a completed request showed `start_confirmed: false`.
+
 ## 0.7.15 (2026-10-26)
 
 This release packages the Muse connector and later agent workflow fixes previously available only from the reviewed main source.

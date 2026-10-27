@@ -41,7 +41,14 @@ assert args[args.index("--permission-mode") + 1] == "manual"
 if mode in ("nonzero", "timeout"): 
     if mode == "timeout": time.sleep(2)
     sys.exit(9)
-(root / "agents.json").write_text(json.dumps([{"id": sid[:8], "sessionId": sid, "status": "idle"}]))
+name = args[args.index("--name") + 1]
+own = str(__import__("uuid").uuid4()) if mode.startswith("own_id") else sid
+(root / "agents.json").write_text(json.dumps([{"id": own[:8], "sessionId": own, "name": name, "status": "idle",
+                                                "startedAt": int(time.time() * 1000)}]))
+if mode == "own_id_twice":
+    (root / "agents.json").write_text(json.dumps([{"id": own[:8], "sessionId": own, "name": name},
+                                                  {"id": "deadbeef", "sessionId": "x", "name": name}]))
+(root / "launch_args.json").write_text(json.dumps(args))
 if mode == "timeout_seen": time.sleep(2)
 if mode == "nonzero_seen": sys.exit(9)
 print("backgrounded " + sid[:8])
@@ -191,6 +198,45 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual("idle", bridge.Bridge(self.cfg).step()["state"])
         self.assertEqual(1, len(self.launches()))
 
+    def test_model_is_passed_only_when_configured_and_validated(self):
+        self.assertEqual("dispatched", self.b.step()["state"])
+        self.assertNotIn("--model", self.launches()[-1])
+        self.record("1123456789abcdef")
+        cfg = dict(self.cfg, model="claude-opus-5-5")
+        self.assertEqual("dispatched", bridge.Bridge(cfg).step()["state"])
+        args = self.launches()[-1]
+        self.assertEqual("claude-opus-5-5", args[args.index("--model") + 1])
+        self.assertLess(args.index("--model"), args.index("--"))
+        for bad in ("", " opus", "two words", "x" * 65, 5):
+            with self.subTest(model=bad), self.assertRaises(bridge.BridgeError):
+                bridge.validate_config(dict(self.cfg, model=bad))
+
+    def test_session_that_ignores_requested_uuid_reconciles_by_unique_launch_name(self):
+        self.mode("own_id")
+        result = self.b.step()
+        self.assertEqual("dispatched", result["state"])
+        run = self.b.load_state()["runs"][result["session_id"]]
+        self.assertEqual("name", run["reconciled_by"])
+        self.assertEqual("idle", bridge.Bridge(self.cfg).step()["state"])
+        self.assertEqual(1, len(self.launches()))
+
+    def test_ambiguous_or_older_named_session_stays_uncertain(self):
+        self.mode("own_id_twice")
+        self.assertEqual("uncertain", self.b.step()["state"])
+        bridge.atomic_json(self.home / "state.json", bridge.empty_state(self.cfg["installation_id"]))
+        (self.root / "calls.jsonl").unlink()
+        self.mode("own_id")
+        real = self.b.call
+        def older(args, timeout=15):
+            code, out = real(args, timeout)
+            if "--bg" in args:
+                agents = json.loads((self.root / "agents.json").read_text())
+                agents[0]["startedAt"] = "2020-01-01T00:00:00Z"
+                (self.root / "agents.json").write_text(json.dumps(agents))
+            return code, out
+        with patch.object(self.b, "call", side_effect=older):
+            self.assertEqual("uncertain", self.b.step()["state"])
+
     def test_crash_after_intent_before_spawn_stays_uncertain(self):
         real = self.b.call
         def crash(args, timeout=15):
@@ -317,6 +363,17 @@ class InstallTests(unittest.TestCase):
         plist = plistlib.loads(next((target / "services").glob("*.plist")).read_bytes())
         self.assertIn(cfg["entry"], plist["ProgramArguments"])
         self.assertEqual(str(unusual), plist["WorkingDirectory"])
+
+    def test_model_is_pinned_kept_on_upgrade_and_removable(self):
+        self.args.apply, self.args.model = True, "claude-opus-5-5"
+        installer.install(self.args)
+        self.assertEqual("claude-opus-5-5", bridge.read_json(self.target / "config.json")["model"])
+        self.args.model = None
+        installer.install(self.args)
+        self.assertEqual("claude-opus-5-5", bridge.read_json(self.target / "config.json")["model"])
+        self.args.model = ""
+        installer.install(self.args)
+        self.assertNotIn("model", bridge.read_json(self.target / "config.json"))
 
     def test_upgrade_preserves_launch_state_local_instructions_and_backup(self):
         self.args.apply = True

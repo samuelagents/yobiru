@@ -770,6 +770,9 @@ REQUEST_FINAL = ("completed", "failed", "rejected", "blocked")
 # Local lifecycle evidence for incoming requests (NULL = not known). received_at: durable receiver acceptance;
 # started_at / progress_at: first / latest `running` the owner reported (the only start evidence; a queued or
 # seen notification is not); final_at / final_response_id: the durable final result and its exact response.
+# Outgoing requests keep the same columns from the responses the peer sent, at the peer's own timestamps:
+# its receipt, its first and latest `running`, and the final result that settled the request. A `running`
+# that arrives after the final result (or in the same instant) still records the start.
 LIFECYCLE_COLUMNS = ("received_at", "started_at", "progress_at", "final_at", "final_response_id")
 
 
@@ -1029,7 +1032,13 @@ def accept_response(ctx, env, peer):
                 raise ValueError("response ID conflicts with an earlier response")
             return False
         db.execute("INSERT INTO response_events VALUES(?,?,?,?)", (env["id"], env["reply_to"], packed, iso(now_utc())))
-        state, seq = env["response"]["state"], env["response"]["seq"]
+        state, seq, ts = env["response"]["state"], env["response"]["seq"], _stamp(env["ts"])
+        lifecycle = set(LIFECYCLE_COLUMNS) <= set(row.keys())
+        if lifecycle:
+            # Evidence the peer reported, whatever order its responses arrive in.
+            db.execute("UPDATE requests SET received_at=COALESCE(received_at,?),started_at=COALESCE(started_at,?) "
+                       "WHERE direction='outgoing' AND id=?",
+                       (ts if state == "received" else None, ts if state == "running" else None, row["id"]))
         # A delayed receipt must never replace a result. timed_out remains explicitly unknown and can
         # be replaced by a later, real result. Real terminal results are immutable.
         if row["state"] not in REQUEST_FINAL and seq > row["seq"] and not (
@@ -1037,6 +1046,12 @@ def accept_response(ctx, env, peer):
             db.execute("UPDATE requests SET state=?,seq=?,latest=?,submission='accepted',"
                        "timed_out_at=COALESCE(timed_out_at,?) WHERE direction='outgoing' AND id=?",
                        (state, seq, packed, iso(now_utc()) if state == "timed_out" else None, row["id"]))
+            if lifecycle and (state == "running" or state in REQUEST_FINAL):
+                final = state in REQUEST_FINAL
+                db.execute("UPDATE requests SET progress_at=COALESCE(?,progress_at),final_at=COALESCE(final_at,?),"
+                           "final_response_id=COALESCE(final_response_id,?) WHERE direction='outgoing' AND id=?",
+                           (ts if state == "running" else None, ts if final else None,
+                            env["id"] if final else None, row["id"]))
     return True
 
 
