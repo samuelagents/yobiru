@@ -585,7 +585,8 @@ class _Deadline(object):
 
     def __init__(self, conn, seconds):
         self.conn, self.expired, self.sock, self.lock = conn, False, None, threading.Lock()
-        self.timer = threading.Timer(max(0.05, seconds), self._expire)
+        self.limit, self.started = max(0.05, seconds), None
+        self.timer = threading.Timer(self.limit, self._expire)
         self.timer.daemon = True
 
     def _expire(self):
@@ -611,6 +612,11 @@ class _Deadline(object):
             self._abort(self.sock)
             raise socket.timeout("deadline exceeded")
 
+    @property
+    def passed(self):
+        """The total limit is over, even when a socket timeout of the same length fired before the timer did."""
+        return self.expired or (self.started is not None and time.monotonic() - self.started >= self.limit)
+
     def check(self):
         if self.expired:
             raise socket.timeout("deadline exceeded")
@@ -621,7 +627,8 @@ class _Deadline(object):
             if self.expired:
                 return
             self.timer.cancel()
-            self.timer = threading.Timer(max(0.05, seconds), self._expire)
+            self.limit, self.started = max(0.05, seconds), time.monotonic()
+            self.timer = threading.Timer(self.limit, self._expire)
             self.timer.daemon = True
             self.timer.start()
 
@@ -700,7 +707,7 @@ def api_call(base_url, method, path, body=None, token=None, timeout=15.0):
             raw = read_bounded(resp, d, timeout)
             d.check()            # a body that completed only because the deadline cut it short is not a success
         except (OSError, http.client.HTTPException) as e:
-            raise ApiError(None, "unreachable", "%s%s" % (type(e).__name__, " (deadline)" if d.expired else ""))
+            raise ApiError(None, "unreachable", "%s%s" % (type(e).__name__, " (deadline)" if d.passed else ""))
     if len(raw) > MAX_RESPONSE_BYTES:
         raise ApiError(resp.status, "response_too_large")
     if 300 <= resp.status < 400:
@@ -736,7 +743,7 @@ def post_raw(base_url, path, data, headers, timeout=60.0):
             raw = read_bounded(resp, d, timeout)
             d.check()
         except (OSError, http.client.HTTPException) as e:
-            raise ApiError(None, "unreachable", "%s%s" % (type(e).__name__, " (deadline)" if d.expired else ""))
+            raise ApiError(None, "unreachable", "%s%s" % (type(e).__name__, " (deadline)" if d.passed else ""))
     if len(raw) > MAX_RESPONSE_BYTES:
         raise ApiError(resp.status, "response_too_large")
     if 300 <= resp.status < 400:
@@ -764,7 +771,7 @@ def get_raw(base_url, path, max_bytes, timeout=15.0):
             raw = resp.read(max_bytes + 1)
             d.check()
         except (OSError, http.client.HTTPException) as e:
-            raise ApiError(None, "unreachable", "%s%s" % (type(e).__name__, " (deadline)" if d.expired else ""))
+            raise ApiError(None, "unreachable", "%s%s" % (type(e).__name__, " (deadline)" if d.passed else ""))
     if 300 <= resp.status < 400:
         raise ApiError(resp.status, "redirect_refused")
     if len(raw) > max_bytes:
@@ -830,7 +837,7 @@ def post_wake(url, headers, body, timeout=20.0):
             resp.read(64 * 1024)
             d.check()
         except (OSError, http.client.HTTPException) as e:
-            return "uncertain", "%s%s" % (type(e).__name__, " (deadline)" if d.expired else "")
+            return "uncertain", "%s%s" % (type(e).__name__, " (deadline)" if d.passed else "")
     if 200 <= resp.status < 300:
         return "accepted", "http %d" % resp.status
     return "uncertain", "http %d" % resp.status
