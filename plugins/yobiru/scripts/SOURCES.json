@@ -4,15 +4,15 @@
   "files": {
     "scripts/tailmsg.py": {
       "source": "tailmsg.py",
-      "sha256": "2abca505d55c32b2b3649b298748767c773adb22b7baed949c1a0cb5a87762c6"
+      "sha256": "c7a4e610e25fd17e2e5ae282f57ae8976c29c601bda35d3ea803ea3a0cf93b63"
     },
     "scripts/codex_bridge/CODEX_DISPATCHER.md": {
       "source": "CODEX_DISPATCHER.md",
-      "sha256": "02a6c02b2fe3012eced4fa0ee00613807b0c960aa0d6c760402e346cd3adc2ad"
+      "sha256": "9df86d18cd745d991dfdaa35d6f0a68a191426623e01d1322902f7136c9dbe65"
     },
     "scripts/codex_bridge/codex_bridge.py": {
       "source": "codex_bridge.py",
-      "sha256": "6b09293ea5f84e3c58a4638e0682eede83a442adad3395d56f8ce79ffaa51f93"
+      "sha256": "e6dab615c8331d8493c4e9555ad7a87311b2a8dbeb2d23226939c58142b31bbd"
     },
     "scripts/codex_bridge/codex_queue_client.py": {
       "source": "codex_queue_client.py",
@@ -33,6 +33,74 @@
     "scripts/codex_bridge/install_codex_bridge_linux.py": {
       "source": "install_codex_bridge_linux.py",
       "sha256": "00e3cd33d8ff9163880527b61a1ef44ecae78d2f8e289d934e72e436a6108e19"
+    },
+    "scripts/claude_bridge/CLAUDE_DISPATCHER.md": {
+      "source": "CLAUDE_DISPATCHER.md",
+      "sha256": "262c6d705b048178883b61b6996e298728ff63fa02d7bbdde99bd87ee62c9e45"
+    },
+    "scripts/claude_bridge/claude_bridge.py": {
+      "source": "claude_bridge.py",
+      "sha256": "f446078f8349e93ab90484613c6a8a54cdd50fe51784b9048822757e6e8e499d"
+    },
+    "scripts/claude_bridge/CLAUDE_BRIDGE.md": {
+      "source": "docs/CLAUDE_BRIDGE.md",
+      "sha256": "17c4dae05c14459b8e29443a2d738f6b4d5ea40ed5f559311bc9b5563926175b"
+    },
+    "scripts/claude_bridge/install_claude_bridge.py": {
+      "source": "install_claude_bridge.py",
+      "sha256": "e7f7ad9598a746ee9e103436e45fb036e5e95fbcf9c32b8effcb846c2e98633c"
+    },
+    "docs/PUBLIC_BOTS.md": {
+      "source": "docs/PUBLIC_BOTS.md",
+      "sha256": "645dd0f67ca997c5b7f000c40215cf16a93479008d480025d2c2a9f60a1f9e5f"
+    },
+    "scripts/public_bots/bot_agents.py": {
+      "source": "public_bots/bot_agents.py",
+      "sha256": "6372ebf90da38740d95fd747f6916f59bfeca2b6a4faea6c749e80c3081a12d1"
+    },
+    "scripts/public_bots/bot_blobs.py": {
+      "source": "public_bots/bot_blobs.py",
+      "sha256": "970a48e7a52519bb85b4b9772eb7e4949883e91b57d7da6f5a366a5f302dbcd4"
+    },
+    "scripts/public_bots/bot_calendar.py": {
+      "source": "public_bots/bot_calendar.py",
+      "sha256": "4ccc27d1e502f68ee535b9d45431f9f99e82bfd1f3aedc355c0d312e16cda58b"
+    },
+    "scripts/public_bots/bot_client.py": {
+      "source": "public_bots/bot_client.py",
+      "sha256": "d77c9f9809e6730231d1856e73f1f4f5cf758d0bcc13350feb53b8fb0347aff2"
+    },
+    "scripts/public_bots/bot_common.py": {
+      "source": "public_bots/bot_common.py",
+      "sha256": "7158ab79371901c3088018c70da2690ee19a95925399dc14a68da3476fa4a460"
+    },
+    "scripts/public_bots/bot_e2e.py": {
+      "source": "public_bots/bot_e2e.py",
+      "sha256": "a758dd54370fe2ec47c278814ef197fa17d7352e9912e4ad6fd69f6986914f7f"
+    },
+    "scripts/public_bots/bot_gateway.py": {
+      "source": "public_bots/bot_gateway.py",
+      "sha256": "300bab40ffec07f33928684f2b3e0931ce576eb3f5f6bc76a80510aae57b72c3"
+    },
+    "scripts/public_bots/bot_links.py": {
+      "source": "public_bots/bot_links.py",
+      "sha256": "2ce07106c7f6b4871d61ab8dee47b21c0476a80ca6a516731a3438f60fb014ea"
+    },
+    "scripts/public_bots/bot_mcp.py": {
+      "source": "public_bots/bot_mcp.py",
+      "sha256": "22f08503404b5b57a41cdd3abbf1c6cf867802c8136e60a68c4853a0778c359b"
+    },
+    "scripts/public_bots/bot_profile.py": {
+      "source": "public_bots/bot_profile.py",
+      "sha256": "2f021d8d2b7d307b6251560af051adb29827c93d5941488f6944758a90f0feb5"
+    },
+    "scripts/public_bots/bot_profile_i18n.py": {
+      "source": "public_bots/bot_profile_i18n.py",
+      "sha256": "d392c2ae72a8de0af3b273910b6649e3248b403ddf0365a954dc22699af42bf7"
+    },
+    "scripts/public_bots/bot_resources.py": {
+      "source": "public_bots/bot_resources.py",
+      "sha256": "f284c528f4994e54aaf993ac5950bb86f07209496661ffc371f62cde009c3226"
     },
     "LICENSE": {
       "source": "LICENSE",

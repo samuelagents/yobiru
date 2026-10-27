@@ -15,15 +15,16 @@ import tempfile
 import threading
 import time
 import unittest
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
+from support.numeric_http import ThreadingHTTPServer
 from pathlib import Path
 
-from support.pkg import REPO, SUPPORT, free_port
+from support.pkg import REPO, SUPPORT, free_port, python_env
 
 
 def node(name, peer):
     return {"BackendState": "Running", "Self": {
-        "DNSName": "%s.example.ts.net." % name, "HostName": name,
+        "ID": name + "-stable", "DNSName": "%s.example.ts.net." % name, "HostName": name,
         "TailscaleIPs": ["127.0.0.1"], "Online": True}, "Peer": {"p1": {
             "DNSName": "%s.example.ts.net." % peer, "HostName": peer,
             "TailscaleIPs": ["127.0.0.1"], "Online": True}}}
@@ -44,8 +45,8 @@ class RequestWorkflowTests(unittest.TestCase):
         user.mkdir()
         no_tools = self.root / "empty PATH"
         no_tools.mkdir()
-        self.env = {"HOME": str(user), "PATH": str(no_tools),
-                    "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8"}
+        self.env = python_env({"HOME": str(user), "PATH": str(no_tools),
+                               "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8"})
         self.port = {"alpha": free_port(), "bravo": free_port()}
         while self.port["alpha"] == self.port["bravo"]:
             self.port["bravo"] = free_port()
@@ -270,10 +271,12 @@ class RequestWorkflowTests(unittest.TestCase):
         self.assertEqual([], self.inbox("alpha"), "protocol result was routed to the ordinary agent inbox")
 
     def test_refresh_when_peer_offline_preserves_unknown_timeout_state(self):
-        mid = self.send_request(timeout=2)
+        # Leave time to observe the receipt and stop the peer before its real
+        # deadline; a two-second window can expire during hosted-runner scheduling.
+        mid = self.send_request(timeout=30)
         self.await_state("alpha", mid, "received")
         self.stop("bravo")
-        self.await_state("alpha", mid, "timed_out", timeout=5)
+        self.await_state("alpha", mid, "timed_out", timeout=35)
         state = self.status("alpha", mid, refresh=True)
         self.assertEqual("timed_out", state["state"])
         self.assertEqual("unavailable", state["refresh"])

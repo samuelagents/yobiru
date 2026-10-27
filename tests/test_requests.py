@@ -81,6 +81,29 @@ class RequestTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             core.accept_response(self.a, dict(final, text="modified"), B)
 
+    def test_outgoing_lifecycle_records_peer_start_and_final_in_any_arrival_order(self):
+        for order in ("in_order", "final_first"):
+            with self.subTest(order=order):
+                self.setUp()
+                self.send()
+                receipt = self.state(self.b)["response"]
+                running = core.respond_request(self.b, MID, "running", "Working")
+                final = core.respond_request(self.b, MID, "completed", "Done")
+                for response in ((receipt, running, final) if order == "in_order" else (receipt, final, running)):
+                    core.accept_response(self.a, response, B)
+                view = self.state(self.a, "outgoing")
+                self.assertEqual("completed", view["state"])
+                self.assertEqual((receipt["ts"], running["ts"], final["ts"], final["id"]),
+                                 (view["received_at"], view["started_at"], view["final_at"], view["final_response_id"]))
+                self.assertTrue(view["start_confirmed"])
+
+    def test_outgoing_final_without_running_does_not_claim_a_start(self):
+        self.send()
+        core.accept_response(self.a, core.respond_request(self.b, MID, "rejected", "Not allowed"), B)
+        view = self.state(self.a, "outgoing")
+        self.assertEqual(("rejected", None, False), (view["state"], view["started_at"], view["start_confirmed"]))
+        self.assertIsNotNone(view["final_at"])
+
     def test_duplicate_request_authentication_and_semantic_conflicts(self):
         self.send()
         self.assertFalse(core.accept_request(self.b, self.rec))

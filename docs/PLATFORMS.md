@@ -13,11 +13,19 @@ and CLI observations retain their dates below; check them again before relying o
 | `plugins/yobiru/.cursor-plugin/plugin.json` | Cursor | Native manifest; no component paths, so Cursor's default discovery finds `skills/`. |
 | `.agents/plugins/marketplace.json` | Codex repository marketplace | `source: {source: local, path: ./plugins/yobiru}`, policy `AVAILABLE` / `ON_INSTALL`, category `Productivity`. |
 | `.cursor-plugin/marketplace.json` | Cursor (repository, team marketplace import) | `name`, `owner.name`, `plugins[]` with `source: plugins/yobiru`. |
+| `plugins/yobiru/.claude-plugin/plugin.json` | Claude Code | Native manifest; default discovery finds `skills/`. Declares one stdio MCP server inline: `sh ${CLAUDE_PLUGIN_ROOT}/scripts/yobiru mcp`. |
+| `.claude-plugin/marketplace.json` | Claude Code repository marketplace | `name`, `owner.name`, `plugins[]` with `source: ./plugins/yobiru` and the version. |
 
-Not shipped: MCP servers (`mcp.json`), hooks, rules, commands, agents, variables. The skills plus the
-bundled command already cover every operation. A stdio MCP wrapper would need separate tested launch
-configuration per host, because Cursor does not expand the standard `${PLUGIN_ROOT}` variable in
-`mcp.json`, and a remote MCP endpoint would need a server this project deliberately does not run.
+Not shipped: a shared MCP file (`mcp.json` / `.mcp.json`), hooks, rules, commands, agents, variables. The
+skills plus the bundled command already cover every operation. The one MCP server lives in the Claude Code
+manifest only, because Claude Code expands `${CLAUDE_PLUGIN_ROOT}` and no other host reads that file; a
+shared `mcp.json` would reach Cursor, which does not expand the standard `${PLUGIN_ROOT}` variable. Other
+MCP clients can register `yobiru mcp` by hand. Private Tailscale messaging does not expose a hosted MCP
+endpoint. Friends has a separate gateway endpoint, described below.
+
+For public bots and Friends, a user may also add the local stdio proxy `yobiru public mcp` to an MCP client by
+hand, and a gateway serves the same API at `/mcp` to bearer-authenticated clients (no OAuth); see
+[public bots and Friends](PUBLIC_BOTS.md#mcp).
 
 ## Tailscale (onboarding)
 
@@ -39,11 +47,12 @@ machine's own Tailscale address, so hosts that can only run Tailscale in userspa
 - Current submission portal: <https://platform.openai.com/plugins>. Skills that run local programs
   follow the desktop-only route, declaring `requires_local_executor: true` in `extensions.com.openai`:
   <https://developers.openai.com/plugins/deploy/desktop-only>. Yobiru uses this route with no MCP
-  server and no second ChatGPT implementation. It requires a local execution environment with
+  server registration and no second ChatGPT implementation. It requires a local execution environment with
   Python and Tailscale, not a hosted ChatGPT web/mobile connector. Organization eligibility,
   identity verification, clean desktop testing and review still apply. A portal access restriction
-  must be reported rather than bypassed. Local MCP allowlisting is a separate case; Yobiru ships
-  no local MCP server. See [submission status](MARKETPLACE_SUBMISSION.md).
+  must be reported rather than bypassed. Local MCP allowlisting is a separate case; the plugin
+  registers no MCP server (the optional `yobiru public mcp` stdio proxy for public bots is added by a
+  user by hand and is not part of a submission). See [submission status](MARKETPLACE_SUBMISSION.md).
 - CLI used in the instructions: `codex plugin marketplace add|upgrade|remove`, `codex plugin
   add|remove NAME@MARKETPLACE` (checked against `codex plugin --help`, codex-cli 0.162.1).
 - Optional Codex bridge: `codex queue --thread <session UUID or exact name> --message TEXT` queues a
@@ -54,6 +63,32 @@ machine's own Tailscale address, so hosts that can only run Tailscale in userspa
   app-server themselves (for example `codex app-server --listen unix://PATH`); how a given setup keeps
   that app-server running is outside Yobiru. Historical live Linux 0.5.0 acceptance and remaining
   host tests are separated in [VERIFICATION.md](VERIFICATION.md).
+
+## Claude Code
+
+- Plugins, marketplaces and the `${CLAUDE_PLUGIN_ROOT}` variable: <https://code.claude.com/docs/en/plugins>,
+  <https://code.claude.com/docs/en/plugin-marketplaces>, <https://code.claude.com/docs/en/plugins-reference>
+- CLI used in the instructions (checked against `claude plugin --help`, Claude Code 2.1.306):
+  `claude plugin marketplace add|update|remove`, `claude plugin install|update|uninstall NAME@MARKETPLACE`,
+  `claude plugin validate [--strict] PATH`. Inside a session: `/plugin marketplace add chekusu/yobiru`,
+  `/plugin install yobiru@yobiru`.
+- `yobiru mcp` (`plugins/yobiru/scripts/yobiru_mcp.py`) speaks MCP over stdio (protocol 2025-11-25,
+  2025-06-18 and 2025-03-26; tools only). Each tool runs one `yobiru` command of the same plugin and data
+  home, with option values before `--` and positional values after it. It listens on no port and holds no
+  state of its own; the receiver (`serve`) still has to run for anything to arrive. If the config has an
+  agent named `claude`, the server sends as `claude` (`--as`) and lists `claude`'s inbox; `--agent NAME`
+  chooses another name.
+- Waking: the optional `yobiru claude-bridge` adapter starts visible background Remote Control sessions with durable intent and exact-session reconciliation. Installation previews by default and never starts a service; see [Claude bridge setup and recovery](CLAUDE_BRIDGE.md). Synthetic tests do not establish native account acceptance. Existing custom adapters are preserved.
+- Checked on 2026-10-21 with Claude Code 2.1.306: `claude plugin validate --strict` passes for the plugin
+  and the marketplace, `claude plugin marketplace add` + `claude plugin install yobiru@yobiru` from a local
+  checkout work, and `claude mcp list` reports the plugin's server as connected.
+- Live on 2026-10-21, Mac Studio (receiver 0.6.0-dev.1, agent `claude` added) to a Grok Bot cloud computer
+  (receiver 0.6.0-beta.1): Claude Code 2.1.306 loaded the plugin from a checkout (`--plugin-dir`) and listed
+  the 10 tools; its headless run then stopped at sign-in, so the steps were driven over stdio against the
+  server launched as the manifest launches it. A tracked `yobiru_send` was received at once and completed
+  about 26 s later; Grok Bot's plain message to `claude` was read, replied to (routed to `grok`) and
+  acknowledged. The run also showed that a long `request list` overflowed the output cap; listings are now
+  filtered to the server's agent and trimmed (`limit`, `total`, `truncated`).
 
 ## Cursor
 
@@ -92,7 +127,8 @@ Grok Bot is documented on cursor.com and docs.x.ai. It is not the Grok Build CLI
   usually the teammate's computer, Slack channels and group chats a shared computer:
   <https://docs.x.ai/grok-bot/team-bots>, <https://cursor.com/help/grok-bot/team-bots>
 - Custom MCP servers can be **Command** (runs on the conversation's computer) or **Remote HTTPS**:
-  <https://docs.x.ai/grok-bot/team-bots>
+  <https://docs.x.ai/grok-bot/team-bots>. Neither has been tried with Yobiru's public bot MCP endpoint
+  or stdio proxy; a Remote HTTPS server that requires OAuth cannot use its static bearer credential.
 - Tailscale on team computers (Enterprise **Team Setup** scripts, Debian-based Linux, `sudo`
   available): <https://cursor.com/docs/grok-bot/private-networks>
 - Routine webhooks: the routine's **Webhook** section shows the URL, the key and the header
@@ -129,6 +165,12 @@ computer (the skills fall back to an unpacked release archive in `/workspace` if
 account's routine reaches the intended computer, and automatic recovery after a rebuild. The setup skill
 verifies official release checksums before using an archive in `/workspace`.
 
+## Meta Muse
+
+The official Tailscale connector joins Muse as its own tailnet node and supports outbound connections. Use the packaged **yobiru-muse** skill and `yobiru muse` adapter: check the actual CLI/identity interface, send tracked pull requests and poll the same request ID. No receiver is started inside Muse. If the connector cannot be used, the intended bot's Friends link provides the existing outbound HTTPS alternative. See [Muse setup, connector contract and limits](MUSE.md).
+
+The implementation has synthetic one-way transport tests; native Muse execution, region/account availability, secure credential storage and directory listing are separate, unverified acceptance states. The gateway's existing remote MCP uses static bearer credentials, not an OAuth integration. Meta's custom connector and directory submission flows must not be conflated.
+
 ## Remaining acceptance steps
 
 1. Codex: CLI install and skill discovery are done (see [VERIFICATION.md](VERIFICATION.md)). Still open: a new
@@ -141,7 +183,21 @@ verifies official release checksums before using an archive in `/workspace`.
    marketplace, enable Yobiru, add it in Grok Bot, confirm the skills and run `paths` on the
    conversation's computer.
 4. Two real machines: setup on both, `send`, `fetch`, `reply`, and a `now` wake through each adapter.
-5. Marketplaces: the repository <https://github.com/chekusu/yobiru> is packaged for Codex repository
+5. Claude Code: the same exchange driven by a signed-in Claude Code session itself (marketplace install,
+   then the model calling the tools), and Windows.
+6. Marketplaces: the repository <https://github.com/chekusu/yobiru> is packaged for Codex repository
    installation (`codex plugin marketplace add chekusu/yobiru`) and Cursor team import. Record
    actual host tests, submission receipts, review decisions and public listing links separately in
    [MARKETPLACE_SUBMISSION.md](MARKETPLACE_SUBMISSION.md). Preparing a valid archive is not a submission.
+
+## macOS gateway interpreter
+
+For a multiprocessing Friends gateway on macOS, use a standalone modern CPython installation.
+During the October 26, 2026 maintenance run, Apple's system Python 3.9 crashed in its SQLite
+`openDatabase` path after `fork` (`_os_log_preferences_refresh`); the single-process connector tests
+passed on the same machine. CI selects CPython 3.12 explicitly on both macOS and Linux so this host
+interpreter is not selected by PATH accident. The CI result for a particular commit remains the
+acceptance evidence; selecting that interpreter is not itself a passing test.
+
+This limitation concerns the multiprocessing gateway and Apple's bundled interpreter. It does not
+change the Python 3.8+ requirement for the private messaging CLI or imply all Python 3.9 builds fail.

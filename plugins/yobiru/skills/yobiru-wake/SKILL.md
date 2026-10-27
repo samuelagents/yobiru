@@ -144,9 +144,17 @@ writable state directories; do not grant write access to the whole data home. Th
 
 Review the plan, then run it without `--dry-run` when the user asked for the bridge (`--no-start`
 writes files only). Use `--allow-replies` only with the user's explicit authorization. Check with
-`sh Y codex-bridge status`: `enqueued` means queued into the session, not done; `retry` will be
-retried automatically (for example `socket_stale`: the app-server is not running); `uncertain` is
-never resent: follow the `hints`, and never delete the queue to force a resend. Undo with
+`sh Y codex-bridge status`: `enqueued` means queued into the session, not started or done;
+`delivered` only means the notification marker appeared in the session; `retry` will be retried
+automatically (for example `socket_stale`: the app-server is not running); `uncertain` is never
+resent: follow the `hints`, and never delete the queue to force a resend. Its read-only `diagnostics`
+separate the evidence (queue receipt, notification seen, an owner-reported `running`, the final result
+and its delivery) and flag `execution_unknown` for accepted work without start evidence, stale
+progress or a deadline passed without a final result. These are diagnostics only: nothing is resent,
+cancelled or marked failed. The desktop transport has no resident connection, so a closed,
+rate-limited or unloaded session cannot be observed or repaired by the bridge; say so instead of
+guessing a cause, and ask the user to open the dispatcher session. After a timeout, only the request's
+owner may record the real outcome once the effect is verified; never rerun the task to clear it. Undo with
 `sh Y codex-bridge rollback BACKUP` (the backup path is in the install output).
 
 An existing installation may route some message kinds to another trusted local program instead of
@@ -186,3 +194,7 @@ replaces the other. The Codex bridge's dispatcher session is reported automatica
   retry or test is part of the task. Nothing deduplicates it: an adapter that sends once per
   invocation sends again, and a request's `running` state does not reserve execution. Before
   re-waking, confirm that any earlier run for that message has ended.
+
+## Claude Code visible Remote Control
+
+For Claude Code, the optional `sh Y claude-bridge install --claude-path /absolute/bin/claude --workdir /absolute/trusted/workdir` previews a durable, visible Remote Control adapter. Read the bundled `../../scripts/claude_bridge/CLAUDE_BRIDGE.md` before installing. Add `--apply` only within authorized setup; no service or Claude process starts during installation. Preserve any existing custom wake adapter. The default permission mode is `manual`. `claude-bridge status` is read-only; `step`/`daemon` can start paid Claude sessions and require the corresponding task authorization. Uncertain launches are reconciled by their persisted session UUID and are never automatically repeated; do not reset state or stop unrelated sessions. The v0.7.15 release includes this adapter; verify its plugin archive and matching SHA256SUMS before installation.
