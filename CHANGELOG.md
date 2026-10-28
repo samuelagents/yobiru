@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Outgoing request lifecycle.** The sender's ledger now records the peer's receipt, first and latest `running`, and final result times (`received_at`, `started_at`, `progress_at`, `final_at`, `final_response_id`), whatever order the responses arrive in. Previously these stayed empty on outgoing requests, so a completed request showed `start_confirmed: false`.
+
 ## 0.7.15 (2026-10-26)
 
 This release packages the Muse connector and later agent workflow fixes previously available only from the reviewed main source.
